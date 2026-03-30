@@ -627,6 +627,20 @@ const MessagesTab = ({ messages, selectedConversation, setSelectedConversation, 
         timestamp: new Date().toISOString(),
         read: false
       });
+
+      // Create notification
+      if (activityId) {
+        await addDoc(collection(db, "notifications"), {
+          userId: receiverId,
+          type: "reply",
+          activityId,
+          senderId: user.uid,
+          senderName: user.displayName || "Anonymous",
+          read: false,
+          timestamp: new Date().toISOString()
+        });
+      }
+
       setReplyText("");
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, "messages");
@@ -780,8 +794,8 @@ const MessagesTab = ({ messages, selectedConversation, setSelectedConversation, 
                 const isMine = msg.senderId === user.uid;
                 return (
                   <div key={msg.id} className={`flex ${isMine ? "justify-end" : "justify-start"} group`}>
-                    <div className={`max-w-[70%] rounded-2xl p-4 relative ${
-                      isMine ? "bg-[#ffb300] text-black rounded-br-sm" : "bg-white/10 text-white rounded-bl-sm"
+                    <div className={`max-w-[85%] md:max-w-[70%] rounded-2xl px-5 py-3 relative shadow-sm ${
+                      isMine ? "bg-[#ffb300] text-black rounded-br-none" : "bg-white/10 text-white rounded-bl-none"
                     }`}>
                       <button
                         onClick={() => deleteMessage(msg.id)}
@@ -847,6 +861,48 @@ export default function Dashboard() {
   const [selectedActivity, setSelectedActivity] = useState<any>(null);
   const [selectedUserProfile, setSelectedUserProfile] = useState<string | null>(null);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
+  const [userData, setUserData] = useState<any>(null);
+  const [unreadActivitiesCount, setUnreadActivitiesCount] = useState(0);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+
+  useEffect(() => {
+    if (user) {
+      const q = query(collection(db, "notifications"), where("userId", "==", user.uid), where("read", "==", false));
+      const unsubscribe = onSnapshot(q, (snapshot) => {
+        const newNotifications = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setNotifications(newNotifications);
+        setUnreadNotificationsCount(newNotifications.length);
+      }, (error) => handleFirestoreError(error, OperationType.LIST, "notifications"));
+      return unsubscribe;
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (activities.length > 0 && userData?.lastCheckedActivities) {
+      const lastChecked = new Date(userData.lastCheckedActivities);
+      const count = activities.filter(a => new Date(a.timestamp) > lastChecked).length;
+      setUnreadActivitiesCount(count);
+    } else if (activities.length > 0) {
+      setUnreadActivitiesCount(activities.length);
+    }
+  }, [activities, userData]);
+
+  useEffect(() => {
+    if (activeTab === "home" && user) {
+      const updateLastChecked = async () => {
+        try {
+          await updateDoc(doc(db, "users", user.uid), {
+            lastCheckedActivities: new Date().toISOString()
+          });
+          setUnreadActivitiesCount(0);
+        } catch (error) {
+          handleFirestoreError(error, OperationType.UPDATE, `users/${user.uid}`);
+        }
+      };
+      updateLastChecked();
+    }
+  }, [activeTab, user]);
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -937,8 +993,6 @@ export default function Dashboard() {
     };
   }, [user, authLoading]);
 
-  const [userData, setUserData] = useState<any>(null);
-
   useEffect(() => {
     if (user) {
       const path = `users/${user.uid}`;
@@ -1004,7 +1058,7 @@ export default function Dashboard() {
 
         <nav className="flex flex-col gap-2 flex-1">
           {[
-            { id: "home", icon: LayoutDashboard, label: "Dashboard" },
+            { id: "home", icon: LayoutDashboard, label: "Dashboard", badge: unreadActivitiesCount > 0 ? unreadActivitiesCount : null },
             { id: "discover", icon: Search, label: "Discover" },
             { id: "messages", icon: MessageSquare, label: "Messages", badge: unreadCount > 0 ? unreadCount : null },
             { id: "studio", icon: Zap, label: "Studio" },
@@ -1069,7 +1123,11 @@ export default function Dashboard() {
           <div className="flex items-center gap-6">
             <button className="relative p-2 text-white/40 hover:text-white transition-colors">
               <Bell size={20} />
-              <div className="absolute top-2 right-2 w-2 h-2 bg-[#ffb300] rounded-full border-2 border-[#0a0a0a]" />
+              {unreadNotificationsCount > 0 && (
+                <div className="absolute top-1 right-1 bg-[#ffb300] text-black text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-[#0a0a0a]">
+                  {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                </div>
+              )}
             </button>
             
             <div className="flex items-center gap-4 pl-6 border-left border-white/10">
@@ -1191,11 +1249,14 @@ export default function Dashboard() {
                       initial={{ opacity: 0, x: -20 }}
                       animate={{ opacity: 1, x: 0 }}
                       transition={{ delay: 0.4 + i * 0.1 }}
-                      className="bg-[#111] border border-white/5 rounded-2xl p-5 flex items-center gap-6 group hover:bg-[#161616] transition-all"
+                      className={`bg-[#111] border rounded-2xl p-5 flex items-center gap-6 group hover:bg-[#161616] transition-all ${
+                        item.type === 'NEED' ? 'border-red-500/30' : 
+                        item.type === 'OFFER' ? 'border-green-500/30' : 'border-white/5'
+                      }`}
                     >
                       <div className={`w-2 h-12 rounded-full ${
-                        item.type === 'NEED' ? 'bg-red-500/50' : 
-                        item.type === 'OFFER' ? 'bg-green-500/50' : 'bg-[#ffb300]/50'
+                        item.type === 'NEED' ? 'bg-red-500' : 
+                        item.type === 'OFFER' ? 'bg-green-500' : 'bg-[#ffb300]'
                       }`} />
                       
                       <div className="flex-1">
