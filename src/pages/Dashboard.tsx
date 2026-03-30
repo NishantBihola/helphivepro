@@ -146,6 +146,113 @@ const HiveAssistant = () => {
   );
 };
 
+// Notification Dropdown Component
+const NotificationDropdown = ({ notifications, onClose }: { notifications: any[]; onClose: () => void }) => {
+  const markAsRead = async (id: string) => {
+    try {
+      await updateDoc(doc(db, "notifications", id), { read: true });
+    } catch (error) {
+      console.error("Error marking as read:", error);
+    }
+  };
+
+  return (
+    <div className="absolute top-full right-0 mt-2 w-80 bg-[#111] border border-white/10 rounded-2xl shadow-2xl z-[100] overflow-hidden">
+      <div className="p-4 border-b border-white/5 flex justify-between items-center">
+        <h3 className="text-xs font-bold uppercase tracking-widest text-[#ffb300]">Notifications</h3>
+        <button onClick={onClose} className="text-white/40 hover:text-white"><X size={16} /></button>
+      </div>
+      <div className="max-h-96 overflow-y-auto custom-scrollbar">
+        {notifications.length === 0 ? (
+          <p className="p-4 text-xs text-white/40 italic text-center">No new notifications.</p>
+        ) : (
+          notifications.map((n) => (
+            <div key={n.id} className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors">
+              <p className="text-xs text-white/80 mb-1">
+                <span className="font-bold">{n.senderName}</span> {n.type === 'like' ? 'liked your activity' : 'replied to your activity'}
+              </p>
+              <div className="flex justify-between items-center">
+                <span className="text-[10px] text-white/40 font-mono">{new Date(n.timestamp).toLocaleTimeString()}</span>
+                <button onClick={() => markAsRead(n.id)} className="text-[10px] text-[#ffb300] hover:underline">Mark as read</button>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
+// Edit Profile Modal Component
+const EditProfileModal = ({ user, userData, onClose }: { user: any; userData: any; onClose: () => void }) => {
+  const [displayName, setDisplayName] = useState(userData?.displayName || "");
+  const [bio, setBio] = useState(userData?.bio || "");
+  const [photoURL, setPhotoURL] = useState(userData?.photoURL || "");
+  const [loading, setLoading] = useState(false);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      const userRef = doc(db, "users", user.uid);
+      const profileRef = doc(db, "public_profiles", user.uid);
+      
+      await updateDoc(userRef, { displayName, photoURL });
+      await updateDoc(profileRef, { displayName, bio, photoURL });
+      
+      onClose();
+    } catch (error) {
+      console.error("Error updating profile:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        exit={{ opacity: 0, scale: 0.95 }}
+        className="bg-[#111] border border-white/10 rounded-3xl p-8 max-w-md w-full shadow-2xl relative"
+      >
+        <button onClick={onClose} className="absolute top-6 right-6 text-white/40 hover:text-white">
+          <X size={24} />
+        </button>
+        <h2 className="text-xl font-black tracking-tight uppercase italic mb-6">Edit_Profile</h2>
+        <div className="space-y-4">
+          <input
+            type="text"
+            value={displayName}
+            onChange={(e) => setDisplayName(e.target.value)}
+            placeholder="Display Name"
+            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#ffb300]"
+          />
+          <textarea
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            placeholder="Bio"
+            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#ffb300] h-24"
+          />
+          <input
+            type="text"
+            value={photoURL}
+            onChange={(e) => setPhotoURL(e.target.value)}
+            placeholder="Photo URL"
+            className="w-full bg-black/50 border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-[#ffb300]"
+          />
+          <button
+            onClick={handleSave}
+            disabled={loading}
+            className="w-full bg-[#ffb300] text-black font-bold py-3 rounded-xl hover:bg-[#ffb300]/90 transition-colors disabled:opacity-50"
+          >
+            {loading ? "Saving..." : "Save Changes"}
+          </button>
+        </div>
+      </motion.div>
+    </div>
+  );
+};
+
 // User Profile Modal Component
 const UserProfileModal = ({ userId, onClose }: { userId: string; onClose: () => void }) => {
   const [profileData, setProfileData] = useState<any>(null);
@@ -851,6 +958,8 @@ const MessagesTab = ({ messages, selectedConversation, setSelectedConversation, 
 export default function Dashboard() {
   const { user, loading: authLoading, logout } = useAuth();
   const navigate = useNavigate();
+  const [isEditProfileModalOpen, setIsEditProfileModalOpen] = useState(false);
+  const [isNotificationDropdownOpen, setIsNotificationDropdownOpen] = useState(false);
   const [activities, setActivities] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState("home");
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -1121,17 +1230,25 @@ export default function Dashboard() {
           </button>
 
           <div className="flex items-center gap-6">
-            <button className="relative p-2 text-white/40 hover:text-white transition-colors">
-              <Bell size={20} />
-              {unreadNotificationsCount > 0 && (
-                <div className="absolute top-1 right-1 bg-[#ffb300] text-black text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-[#0a0a0a]">
-                  {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
-                </div>
+            <div className="relative">
+              <button 
+                onClick={() => setIsNotificationDropdownOpen(!isNotificationDropdownOpen)}
+                className="relative p-2 text-white/40 hover:text-white transition-colors"
+              >
+                <Bell size={20} />
+                {unreadNotificationsCount > 0 && (
+                  <div className="absolute top-1 right-1 bg-[#ffb300] text-black text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center border-2 border-[#0a0a0a]">
+                    {unreadNotificationsCount > 9 ? "9+" : unreadNotificationsCount}
+                  </div>
+                )}
+              </button>
+              {isNotificationDropdownOpen && (
+                <NotificationDropdown notifications={notifications} onClose={() => setIsNotificationDropdownOpen(false)} />
               )}
-            </button>
+            </div>
             
             <div className="flex items-center gap-4 pl-6 border-left border-white/10">
-              <div className="text-right hidden sm:block">
+              <button onClick={() => setIsEditProfileModalOpen(true)} className="text-right hidden sm:block hover:opacity-80 transition-opacity">
                 <p className="text-xs font-black tracking-tight">{user?.displayName || "Hive_Member"}</p>
                 <div className="flex items-center justify-end gap-2">
                   <p className="text-[10px] text-white/40 font-mono uppercase">Edmonton_North</p>
@@ -1141,7 +1258,7 @@ export default function Dashboard() {
                     </span>
                   )}
                 </div>
-              </div>
+              </button>
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ffb300] to-[#ff8c00] p-[1px]">
                 <div className="w-full h-full rounded-xl bg-[#0a0a0a] overflow-hidden flex items-center justify-center">
                   {user?.photoURL ? (
@@ -1403,6 +1520,9 @@ export default function Dashboard() {
         )}
         {selectedUserProfile && (
           <UserProfileModal userId={selectedUserProfile} onClose={() => setSelectedUserProfile(null)} />
+        )}
+        {isEditProfileModalOpen && (
+          <EditProfileModal user={user} userData={userData} onClose={() => setIsEditProfileModalOpen(false)} />
         )}
       </AnimatePresence>
 
