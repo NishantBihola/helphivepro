@@ -22,7 +22,8 @@ import {
 import { useAuth, db, handleFirestoreError, OperationType } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { collection, query, limit, onSnapshot, orderBy, doc, getDoc, getDocs, addDoc, updateDoc, increment, where, or, and, setDoc, deleteDoc } from "firebase/firestore";
-import { askHive } from "../services/gemini";
+import { askHive, evaluatePost, getQueenInsights, findBestMatches } from "../services/gemini";
+import { Sparkles, Brain, Target, Info } from "lucide-react";
 import { createCheckoutSession, verifySession } from "../services/stripeService";
 
 // AI Assistant Component
@@ -386,6 +387,10 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         setAiEnhancing(false);
       }
 
+      // AI Evaluation for extra Honey Score
+      const evaluation = await evaluatePost(finalMsg, type);
+      const aiHoneyBonus = Math.floor(evaluation.score); // Award points based on AI score (1-10)
+
       // 1. Create the activity post
       await addDoc(collection(db, "activities"), {
         type,
@@ -393,15 +398,16 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         location: location || "Edmonton",
         timestamp: new Date().toISOString(),
         user: user.displayName || "Anonymous",
-        uid: user.uid
+        uid: user.uid,
+        aiEvaluation: evaluation
       });
 
       // 2. Update user stats
       const userRef = doc(db, "users", user.uid);
       
       // Calculate rewards
-      const honeyReward = type === "OFFER" ? 10 : 5;
-      const repReward = type === "OFFER" ? 5 : 2;
+      const honeyReward = (type === "OFFER" ? 10 : 5) + aiHoneyBonus;
+      const repReward = (type === "OFFER" ? 5 : 2) + Math.floor(aiHoneyBonus / 2);
       const activeHelpIncrement = type === "OFFER" ? 1 : 0;
 
       await updateDoc(userRef, {
@@ -557,6 +563,146 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
           </button>
         </form>
       </motion.div>
+    </div>
+  );
+};
+
+// Queen AI Hub Component
+const QueenAIHub = ({ activities, user }: { activities: any[]; user: any }) => {
+  const [insights, setInsights] = useState<any[]>([]);
+  const [matches, setMatches] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<"INSIGHTS" | "MATCHES">("INSIGHTS");
+
+  const fetchInsights = async () => {
+    setLoading(true);
+    try {
+      const data = await getQueenInsights(activities);
+      setInsights(data);
+    } catch (error) {
+      console.error("Failed to fetch insights", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchMatches = async () => {
+    setLoading(true);
+    try {
+      const userNeeds = activities.filter(a => a.uid === user.uid && a.type === "NEED");
+      const allOffers = activities.filter(a => a.uid !== user.uid && a.type === "OFFER");
+      const data = await findBestMatches(userNeeds, allOffers);
+      setMatches(data);
+    } catch (error) {
+      console.error("Failed to fetch matches", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "INSIGHTS" && insights.length === 0) fetchInsights();
+    if (activeTab === "MATCHES" && matches.length === 0) fetchMatches();
+  }, [activeTab]);
+
+  return (
+    <div className="bg-[#111] border border-[#ffb300]/20 rounded-3xl p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="p-2 bg-[#ffb300]/10 rounded-xl">
+            <Sparkles size={20} className="text-[#ffb300]" />
+          </div>
+          <div>
+            <h3 className="text-sm font-black tracking-widest uppercase">Queen_AI_Hub</h3>
+            <p className="text-[10px] text-white/40 font-mono uppercase">Neural_Insights_Active</p>
+          </div>
+        </div>
+        <div className="flex bg-black/40 rounded-lg p-1 border border-white/5">
+          {["INSIGHTS", "MATCHES"].map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab as any)}
+              className={`px-3 py-1 text-[9px] font-bold tracking-widest uppercase rounded-md transition-all ${
+                activeTab === tab ? "bg-[#ffb300] text-black" : "text-white/40 hover:text-white"
+              }`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="min-h-[200px]">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center h-[200px] gap-3">
+            <div className="w-8 h-8 border-2 border-[#ffb300]/20 border-t-[#ffb300] rounded-full animate-spin" />
+            <p className="text-[10px] font-mono text-[#ffb300] animate-pulse">Processing_Neural_Data...</p>
+          </div>
+        ) : activeTab === "INSIGHTS" ? (
+          <div className="space-y-4">
+            {insights.map((insight, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-[#ffb300]/30 transition-all group"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="p-2 rounded-lg bg-white/5 group-hover:bg-[#ffb300]/10 transition-colors">
+                    <Brain size={16} className="text-[#ffb300]" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-white mb-1">{insight.title}</h4>
+                    <p className="text-[10px] text-white/40 leading-relaxed">{insight.description}</p>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+            {insights.length === 0 && (
+              <p className="text-[10px] text-white/20 text-center py-8">No insights available yet.</p>
+            )}
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {matches.map((match, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ delay: i * 0.1 }}
+                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-[#ffb300]/30 transition-all group"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex items-start gap-4">
+                    <div className="p-2 rounded-lg bg-white/5 group-hover:bg-[#ffb300]/10 transition-colors">
+                      <Target size={16} className="text-[#ffb300]" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-white mb-1">Match Score: {match.matchScore}%</h4>
+                      <p className="text-[10px] text-white/40 leading-relaxed">{match.reason}</p>
+                    </div>
+                  </div>
+                  <button className="px-3 py-1 bg-[#ffb300] text-black text-[9px] font-bold uppercase rounded-lg hover:scale-105 transition-transform">
+                    Connect
+                  </button>
+                </div>
+              </motion.div>
+            ))}
+            {matches.length === 0 && (
+              <p className="text-[10px] text-white/20 text-center py-8">No matches found for your needs.</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      <button 
+        onClick={activeTab === "INSIGHTS" ? fetchInsights : fetchMatches}
+        className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
+      >
+        <Zap size={14} className="text-[#ffb300]" />
+        Refresh_Neural_Sync
+      </button>
     </div>
   );
 };
@@ -1327,6 +1473,9 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-6">
+                {userData?.plan === "Queen Plan" && (
+                  <QueenAIHub activities={activities} user={user} />
+                )}
                 <HiveAssistant />
               </div>
             </section>
