@@ -59,6 +59,29 @@ async function startServer() {
     }
   });
 
+  app.post("/api/process-payment", async (req, res) => {
+    console.log("Received request to process payment");
+    const { userId, planName, paymentMethod } = req.body;
+    console.log("Request body:", req.body);
+    
+    if (!userId || !planName || !paymentMethod) {
+      console.error("Missing required fields in request body");
+      return res.status(400).json({ error: "Missing required fields" });
+    }
+
+    try {
+      // Simulate payment processing
+      console.log(`Processing ${paymentMethod} payment for user ${userId} and plan ${planName}`);
+      
+      // In a real app, you would integrate with a payment provider here.
+      // For now, we simulate success.
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Payment error:", error);
+      res.status(500).json({ error: "Failed to process payment" });
+    }
+  });
+
   app.get("/api/verify-session", async (req, res) => {
     const { session_id } = req.query;
     try {

@@ -36,6 +36,12 @@ export default function CheckoutPage() {
         })
       });
 
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Payment failed response:", errorText);
+        throw new Error(errorText || "Payment failed.");
+      }
+
       const result = await response.json();
       if (result.success) {
         await updatePlan(user.uid, planName);

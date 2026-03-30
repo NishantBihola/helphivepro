@@ -119,7 +119,7 @@ service cloud.firestore {
       allow update: if isAuthenticated() && isValidMessage(request.resource.data) && 
                       (request.auth.uid == resource.data.receiverId) && 
                       (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
-      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.senderId);
+      allow delete: if isAdmin() || (isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId));
     }
   }
 }
