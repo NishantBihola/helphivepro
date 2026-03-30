@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A member of the HelpHive community",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique Firebase Auth UID" },
+        "displayName": { "type": "string", "description": "User's full name" },
+        "email": { "type": "string", "format": "email", "description": "User's email address" },
+        "photoURL": { "type": "string", "format": "url", "description": "URL to user's profile picture" },
+        "lastLogin": { "type": "string", "format": "date-time", "description": "ISO timestamp of last login" },
+        "honeyScore": { "type": "number", "description": "User's current gamification score" },
+        "activeHelps": { "type": "number", "description": "Number of active helps" },
+        "reputation": { "type": "number", "description": "User's reputation level" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Activity": {
+      "title": "Activity",
+      "description": "A community activity or post",
+      "type": "object",
+      "properties": {
+        "type": { "type": "string", "enum": ["NEED", "OFFER", "SYSTEM", "TRUST"], "description": "Type of activity" },
+        "msg": { "type": "string", "description": "The activity message" },
+        "location": { "type": "string", "description": "Neighborhood or location" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the activity occurred" },
+        "price": { "type": "string", "description": "Price or reputation cost" },
+        "category": { "type": "string", "description": "Activity category" }
+      },
+      "required": ["type", "msg", "timestamp"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "A direct message between users",
+      "type": "object",
+      "properties": {
+        "text": { "type": "string", "description": "The message content" },
+        "senderId": { "type": "string", "description": "UID of the sender" },
+        "receiverId": { "type": "string", "description": "UID of the receiver" },
+        "activityId": { "type": "string", "description": "ID of the related activity" },
+        "timestamp": { "type": "string", "format": "date-time", "description": "When the message was sent" },
+        "read": { "type": "boolean", "description": "Whether the message has been read" }
+      },
+      "required": ["text", "senderId", "receiverId", "timestamp", "read"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "/activities/{activityId}": {
+      "schema": "Activity",
+      "description": "Public community activities"
+    },
+    "/messages/{messageId}": {
+      "schema": "Message",
+      "description": "Direct messages between users"
+    }
+  }
+}

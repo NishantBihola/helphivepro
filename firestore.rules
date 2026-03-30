@@ -1,0 +1,125 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required) - The unique Firebase Auth UID
+    //   - displayName: string (optional) - User's full name
+    //   - email: string (required, email format) - User's email address
+    //   - photoURL: string (optional, url format) - URL to user's profile picture
+    //   - lastLogin: string (required, date-time format) - ISO timestamp of last login
+    //   - honeyScore: number (required) - User's current gamification score
+    //   - activeHelps: number (optional) - Number of active helps
+    //   - reputation: number (optional) - User's reputation level
+    //   - role: string (optional) - User role (admin, member)
+    //
+    // Collection: activities
+    // Document ID: {activityId}
+    // Fields:
+    //   - type: string (required, enum: NEED, OFFER, SYSTEM, TRUST) - Type of activity
+    //   - msg: string (required) - The activity message
+    //   - location: string (optional) - Neighborhood or location
+    //   - timestamp: string (required, date-time format) - When the activity occurred
+    //   - price: string (optional) - Price or reputation cost
+    //   - category: string (optional) - Activity category
+    //
+    // Collection: messages
+    // Document ID: {messageId}
+    // Fields:
+    //   - text: string (required) - The message content
+    //   - senderId: string (required) - UID of the sender
+    //   - receiverId: string (required) - UID of the receiver
+    //   - activityId: string (required) - ID of the related activity
+    //   - timestamp: string (required, date-time format) - When the message was sent
+    //   - read: boolean (required) - Whether the message has been read
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    function isAdmin() {
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "nishant15bihola@gmail.com" && request.auth.token.email_verified == true));
+    }
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Domain Validators
+    function isValidUser(data) {
+      return data.uid is string && data.email is string;
+    }
+    function isValidActivity(data) {
+      return data.keys().hasAll(['type', 'msg', 'timestamp']) &&
+             data.type in ['NEED', 'OFFER', 'SYSTEM', 'TRUST'] &&
+             data.msg is string && data.msg.size() > 0 && data.msg.size() < 1000 &&
+             data.timestamp is string;
+    }
+
+    function isValidMessage(data) {
+      return data.keys().hasAll(['text', 'senderId', 'receiverId', 'activityId', 'timestamp', 'read']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 2000 &&
+             data.senderId is string && data.receiverId is string && data.activityId is string &&
+             data.timestamp is string && data.read is bool;
+    }
+
+    function isValidPublicProfile(data) {
+      return data.uid is string && data.displayName is string &&
+             (!('photoURL' in data) || data.photoURL is string) &&
+             (!('honeyScore' in data) || data.honeyScore is number) &&
+             (!('activeHelps' in data) || data.activeHelps is number) &&
+             (!('reputation' in data) || data.reputation is number) &&
+             (!('bio' in data) || data.bio is string);
+    }
+
+    match /users/{userId} {
+      // PII Protection: Only owner or admin can read the full user document
+      allow read: if isOwner(userId) || isAdmin() || (isAuthenticated() && resource.data.email == request.auth.token.email);
+      
+      // Create: Only owner can create their own profile, can't self-assign admin role
+      allow create: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.get('role', 'member') != 'admin');
+      
+      // Update: Only owner can update their own profile, can't change role unless admin
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && 
+                      (request.resource.data.get('role', resource.data.get('role', 'member')) == resource.data.get('role', 'member') || isAdmin());
+    }
+
+    match /public_profiles/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidPublicProfile(request.resource.data);
+      allow update: if isOwner(userId) && isValidPublicProfile(request.resource.data);
+    }
+
+    match /activities/{activityId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidActivity(request.resource.data);
+      allow update, delete: if isAdmin();
+    }
+
+    match /messages/{messageId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.senderId || request.auth.uid == resource.data.receiverId);
+      allow create: if isAuthenticated() && isValidMessage(request.resource.data) && request.auth.uid == request.resource.data.senderId;
+      allow update: if isAuthenticated() && isValidMessage(request.resource.data) && 
+                      (request.auth.uid == resource.data.receiverId) && 
+                      (request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read']));
+      allow delete: if isAdmin() || (isAuthenticated() && request.auth.uid == resource.data.senderId);
+    }
+  }
+}
