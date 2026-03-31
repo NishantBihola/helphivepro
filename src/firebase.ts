@@ -70,46 +70,23 @@ export async function signInWithGoogle() {
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (!userDoc.exists()) {
-        // Check if a user with this email already exists to preserve their plan
-        let existingPlan = "Drone Plan";
-        let existingLimits = { nodes: 1, requests: 12 };
-        let existingFeatures = ["Basic AI avatars", "1 personal avatar", "Standard AI assistant"];
-        let existingHoneyScore = 100;
-        let existingReputation = 1;
-        
-        if (user.email) {
-          const q = query(collection(db, 'users'), where('email', '==', user.email));
-          const querySnapshot = await getDocs(q);
-          if (!querySnapshot.empty) {
-            const existingData = querySnapshot.docs[0].data();
-            existingPlan = existingData.plan || existingPlan;
-            existingLimits = existingData.limits || existingLimits;
-            existingFeatures = existingData.features || existingFeatures;
-            existingHoneyScore = existingData.honeyScore || existingHoneyScore;
-            existingReputation = existingData.reputation || existingReputation;
-          }
-        }
-
         await setDoc(doc(db, 'users', user.uid), {
           uid: user.uid,
           displayName: user.displayName || "Anonymous",
           email: user.email,
           photoURL: user.photoURL || "",
           lastLogin: new Date().toISOString(),
-          honeyScore: existingHoneyScore,
-          reputation: existingReputation,
-          plan: existingPlan,
-          limits: existingLimits,
-          features: existingFeatures
+          honeyScore: 100,
+          reputation: 1,
         }, { merge: true });
         
         await setDoc(doc(db, 'public_profiles', user.uid), {
           uid: user.uid,
           displayName: user.displayName || "Anonymous",
           photoURL: user.photoURL || "",
-          honeyScore: existingHoneyScore,
+          honeyScore: 100,
           activeHelps: 0,
-          reputation: existingReputation,
+          reputation: 1,
           bio: "A new member of the Hive."
         }, { merge: true });
       } else {
@@ -137,40 +114,6 @@ export async function signInWithGoogle() {
     }
     console.error("Error signing in with Google:", error);
     throw error;
-  }
-}
-
-export async function updatePlan(userId: string, plan: string) {
-  const userPath = `users/${userId}`;
-  
-  const planData: Record<string, any> = {
-    "Drone Plan": {
-      limits: { nodes: 1, requests: 12 },
-      features: ["Basic AI avatars", "1 personal avatar", "Standard AI assistant"]
-    },
-    "Worker Plan": {
-      limits: { nodes: 5, requests: 120 },
-      features: ["Selected industry avatars", "5 personal avatars", "Premium voices", "Custom fonts", "Branded share page"]
-    },
-    "Queen Plan": {
-      limits: { nodes: 9999, requests: 9999 },
-      features: ["All industry avatars", "Unlimited personal avatars", "Branded AI avatars", "Voice cloning", "Shared workspace"]
-    }
-  };
-
-  const selectedPlan = planData[plan] || planData["Drone Plan"];
-
-  try {
-    await setDoc(doc(db, 'users', userId), {
-      uid: userId,
-      email: auth.currentUser?.email,
-      plan: plan,
-      limits: selectedPlan.limits,
-      features: selectedPlan.features,
-      updatedAt: new Date().toISOString(),
-    }, { merge: true });
-  } catch (error) {
-    handleFirestoreError(error, OperationType.WRITE, userPath);
   }
 }
 

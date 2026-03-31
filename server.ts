@@ -35,6 +35,7 @@ async function startServer() {
     }
 
     try {
+      console.log("Creating Stripe session with priceId:", priceId, "for user:", userId);
       const session = await stripe.checkout.sessions.create({
         payment_method_types: ["card"],
         line_items: [
@@ -51,11 +52,11 @@ async function startServer() {
           planName: planName || "Unknown Plan",
         },
       });
-      console.log("Session created:", session.url);
+      console.log("Stripe session created successfully:", session.url);
       res.json({ url: session.url });
     } catch (error) {
-      console.error("Stripe error:", error);
-      res.status(500).json({ error: "Failed to create checkout session" });
+      console.error("Stripe error details:", error);
+      res.status(500).json({ error: "Failed to create checkout session", details: error instanceof Error ? error.message : String(error) });
     }
   });
 

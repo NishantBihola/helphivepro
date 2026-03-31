@@ -17,14 +17,14 @@ import {
   Users,
   Hexagon,
   X,
-  Send
+  Send,
+  Cpu,
+  Package
 } from "lucide-react";
 import { useAuth, db, handleFirestoreError, OperationType } from "../firebase";
 import { useNavigate } from "react-router-dom";
 import { collection, query, limit, onSnapshot, orderBy, doc, getDoc, getDocs, addDoc, updateDoc, increment, where, or, and, setDoc, deleteDoc } from "firebase/firestore";
-import { askHive, evaluatePost, getQueenInsights, findBestMatches } from "../services/gemini";
-import { Sparkles, Brain, Target, Info } from "lucide-react";
-import { createCheckoutSession, verifySession } from "../services/stripeService";
+import { askHive } from "../services/gemini";
 
 // AI Assistant Component
 interface ChatMessage {
@@ -85,26 +85,31 @@ const HiveAssistant = () => {
   };
 
   return (
-    <div className="bg-[#1a1a1a] border border-white/5 rounded-3xl p-6 flex flex-col gap-4 shadow-xl h-full min-h-[400px]">
-      <div className="flex items-center gap-3 text-[#ffb300] shrink-0">
+    <div className="bg-[#111] border border-white/10 rounded-3xl p-6 flex flex-col gap-4 shadow-2xl h-[500px] overflow-hidden">
+      <div className="flex items-center gap-3 text-[#ffb300] shrink-0 pb-2 border-b border-white/5">
         <Sparkles size={20} />
-        <h3 className="text-sm font-bold uppercase tracking-widest">Hive_Assistant</h3>
+        <h3 className="text-sm font-black uppercase tracking-widest">Hive_Assistant</h3>
       </div>
       
       <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 pr-2">
         {messages.map((msg) => (
-          <div key={msg.id} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
-            <div className="relative group max-w-[85%]">
-              <div className={`p-3 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words ${
+          <motion.div 
+            key={msg.id} 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}
+          >
+            <div className="relative group max-w-[90%]">
+              <div className={`p-4 rounded-2xl text-xs leading-relaxed whitespace-pre-wrap break-words shadow-sm ${
                 msg.role === "user" 
                   ? "bg-[#ffb300] text-black rounded-tr-sm" 
-                  : "bg-white/10 text-white/80 rounded-tl-sm font-mono"
+                  : "bg-white/5 text-white/90 rounded-tl-sm font-mono border border-white/5"
               }`}>
                 <p>{msg.text}</p>
               </div>
               <button 
                 onClick={() => deleteMessage(msg.id)}
-                className={`absolute -top-2 p-1 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
+                className={`absolute -top-2 p-1 bg-red-500/80 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity ${
                   msg.role === "user" ? "-left-2" : "-right-2"
                 }`}
                 title="Delete message"
@@ -112,33 +117,37 @@ const HiveAssistant = () => {
                 <X size={10} />
               </button>
             </div>
-          </div>
+          </motion.div>
         ))}
         {loading && (
-          <div className="flex items-start">
-            <div className="bg-white/10 text-white/80 p-3 rounded-2xl rounded-tl-sm text-xs font-mono flex items-center gap-2">
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex items-start"
+          >
+            <div className="bg-white/5 text-white/60 p-4 rounded-2xl rounded-tl-sm text-xs font-mono flex items-center gap-2 border border-white/5">
               <div className="w-1.5 h-1.5 bg-[#ffb300] rounded-full animate-bounce" />
               <div className="w-1.5 h-1.5 bg-[#ffb300] rounded-full animate-bounce" style={{ animationDelay: "0.2s" }} />
               <div className="w-1.5 h-1.5 bg-[#ffb300] rounded-full animate-bounce" style={{ animationDelay: "0.4s" }} />
             </div>
-          </div>
+          </motion.div>
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="relative shrink-0 mt-2">
+      <div className="relative shrink-0 mt-2 pt-2 border-t border-white/5">
         <input 
           type="text" 
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleAskAI()}
           placeholder="Ask the Hive..."
-          className="w-full bg-black/40 border border-white/10 rounded-xl px-4 py-3 pr-10 text-xs text-white focus:border-[#ffb300]/50 outline-none transition-all"
+          className="w-full bg-black/60 border border-white/10 rounded-xl px-4 py-3 pr-12 text-xs text-white focus:border-[#ffb300]/50 outline-none transition-all placeholder:text-white/20"
         />
         <button 
           onClick={handleAskAI}
           disabled={loading || !prompt.trim()}
-          className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-[#ffb300] text-black rounded-lg hover:scale-110 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 bg-[#ffb300] text-black rounded-lg hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
         >
           <ArrowUpRight size={16} />
         </button>
@@ -387,10 +396,6 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         setAiEnhancing(false);
       }
 
-      // AI Evaluation for extra Honey Score
-      const evaluation = await evaluatePost(finalMsg, type);
-      const aiHoneyBonus = Math.floor(evaluation.score); // Award points based on AI score (1-10)
-
       // 1. Create the activity post
       await addDoc(collection(db, "activities"), {
         type,
@@ -398,16 +403,15 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
         location: location || "Edmonton",
         timestamp: new Date().toISOString(),
         user: user.displayName || "Anonymous",
-        uid: user.uid,
-        aiEvaluation: evaluation
+        uid: user.uid
       });
 
       // 2. Update user stats
       const userRef = doc(db, "users", user.uid);
       
       // Calculate rewards
-      const honeyReward = (type === "OFFER" ? 10 : 5) + aiHoneyBonus;
-      const repReward = (type === "OFFER" ? 5 : 2) + Math.floor(aiHoneyBonus / 2);
+      const honeyReward = type === "OFFER" ? 10 : 5;
+      const repReward = type === "OFFER" ? 5 : 2;
       const activeHelpIncrement = type === "OFFER" ? 1 : 0;
 
       await updateDoc(userRef, {
@@ -567,142 +571,49 @@ const CreatePostModal = ({ isOpen, onClose }: { isOpen: boolean; onClose: () => 
   );
 };
 
-// Queen AI Hub Component
-const QueenAIHub = ({ activities, user }: { activities: any[]; user: any }) => {
-  const [insights, setInsights] = useState<any[]>([]);
-  const [matches, setMatches] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<"INSIGHTS" | "MATCHES">("INSIGHTS");
-
-  const fetchInsights = async () => {
-    setLoading(true);
-    try {
-      const data = await getQueenInsights(activities);
-      setInsights(data);
-    } catch (error) {
-      console.error("Failed to fetch insights", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchMatches = async () => {
-    setLoading(true);
-    try {
-      const userNeeds = activities.filter(a => a.uid === user.uid && a.type === "NEED");
-      const allOffers = activities.filter(a => a.uid !== user.uid && a.type === "OFFER");
-      const data = await findBestMatches(userNeeds, allOffers);
-      setMatches(data);
-    } catch (error) {
-      console.error("Failed to fetch matches", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (activeTab === "INSIGHTS" && insights.length === 0) fetchInsights();
-    if (activeTab === "MATCHES" && matches.length === 0) fetchMatches();
-  }, [activeTab]);
+// Studio Tab Component
+const StudioTab = ({ user, userData }: any) => {
+  const studioFeatures = [
+    { name: "Temperature-triggered feed prioritization", icon: Zap },
+    { name: "Traffic-aware proximity matching", icon: MapPin },
+    { name: "Automated inventory tracking", icon: Package },
+    { name: "Safety deposits", icon: Shield },
+    { name: "ZK-Proof residency verification", icon: Shield },
+  ];
 
   return (
-    <div className="bg-[#111] border border-[#ffb300]/20 rounded-3xl p-6 space-y-6">
+    <div className="space-y-8">
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="p-2 bg-[#ffb300]/10 rounded-xl">
-            <Sparkles size={20} className="text-[#ffb300]" />
+        <h2 className="text-2xl font-black tracking-tight uppercase italic">Studio_Control_Panel</h2>
+        <div className="flex items-center gap-4">
+          <div className="text-right">
+            <p className="text-[10px] text-white/40 font-mono uppercase">Honey_Score</p>
+            <p className="text-xl font-black text-[#ffb300]">{userData?.honeyScore || 0}</p>
           </div>
-          <div>
-            <h3 className="text-sm font-black tracking-widest uppercase">Queen_AI_Hub</h3>
-            <p className="text-[10px] text-white/40 font-mono uppercase">Neural_Insights_Active</p>
+          <div className="text-right">
+            <p className="text-[10px] text-white/40 font-mono uppercase">Reputation</p>
+            <p className="text-xl font-black text-white">{userData?.reputation || 0}</p>
           </div>
-        </div>
-        <div className="flex bg-black/40 rounded-lg p-1 border border-white/5">
-          {["INSIGHTS", "MATCHES"].map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab as any)}
-              className={`px-3 py-1 text-[9px] font-bold tracking-widest uppercase rounded-md transition-all ${
-                activeTab === tab ? "bg-[#ffb300] text-black" : "text-white/40 hover:text-white"
-              }`}
-            >
-              {tab}
-            </button>
-          ))}
+          <div className="text-right">
+            <p className="text-[10px] text-white/40 font-mono uppercase">Active_Helps</p>
+            <p className="text-xl font-black text-white">{userData?.activeHelps || 0}</p>
+          </div>
         </div>
       </div>
 
-      <div className="min-h-[200px]">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center h-[200px] gap-3">
-            <div className="w-8 h-8 border-2 border-[#ffb300]/20 border-t-[#ffb300] rounded-full animate-spin" />
-            <p className="text-[10px] font-mono text-[#ffb300] animate-pulse">Processing_Neural_Data...</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        {studioFeatures.map((feature, i) => (
+          <div key={i} className="bg-[#111] border border-[#ffb300]/30 rounded-2xl p-6 flex flex-col gap-4">
+            <div className="p-3 rounded-xl w-fit bg-[#ffb300]/10">
+              <feature.icon size={20} className="text-[#ffb300]" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm text-white">{feature.name}</h3>
+              <p className="text-[10px] text-white/40 font-mono uppercase mt-1">Active</p>
+            </div>
           </div>
-        ) : activeTab === "INSIGHTS" ? (
-          <div className="space-y-4">
-            {insights.map((insight, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-[#ffb300]/30 transition-all group"
-              >
-                <div className="flex items-start gap-4">
-                  <div className="p-2 rounded-lg bg-white/5 group-hover:bg-[#ffb300]/10 transition-colors">
-                    <Brain size={16} className="text-[#ffb300]" />
-                  </div>
-                  <div>
-                    <h4 className="text-xs font-bold text-white mb-1">{insight.title}</h4>
-                    <p className="text-[10px] text-white/40 leading-relaxed">{insight.description}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-            {insights.length === 0 && (
-              <p className="text-[10px] text-white/20 text-center py-8">No insights available yet.</p>
-            )}
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {matches.map((match, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: i * 0.1 }}
-                className="p-4 rounded-2xl bg-white/5 border border-white/10 hover:border-[#ffb300]/30 transition-all group"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-lg bg-white/5 group-hover:bg-[#ffb300]/10 transition-colors">
-                      <Target size={16} className="text-[#ffb300]" />
-                    </div>
-                    <div>
-                      <h4 className="text-xs font-bold text-white mb-1">Match Score: {match.matchScore}%</h4>
-                      <p className="text-[10px] text-white/40 leading-relaxed">{match.reason}</p>
-                    </div>
-                  </div>
-                  <button className="px-3 py-1 bg-[#ffb300] text-black text-[9px] font-bold uppercase rounded-lg hover:scale-105 transition-transform">
-                    Connect
-                  </button>
-                </div>
-              </motion.div>
-            ))}
-            {matches.length === 0 && (
-              <p className="text-[10px] text-white/20 text-center py-8">No matches found for your needs.</p>
-            )}
-          </div>
-        )}
+        ))}
       </div>
-
-      <button 
-        onClick={activeTab === "INSIGHTS" ? fetchInsights : fetchMatches}
-        className="w-full py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2"
-      >
-        <Zap size={14} className="text-[#ffb300]" />
-        Refresh_Neural_Sync
-      </button>
     </div>
   );
 };
@@ -1170,23 +1081,7 @@ export default function Dashboard() {
     const success = urlParams.get("success");
     const sessionId = urlParams.get("session_id");
 
-    if (success === "true" && sessionId && user) {
-      const handlePaymentSuccess = async () => {
-        try {
-          const session = await verifySession(sessionId);
-          if (session.status === "paid") {
-            await updateDoc(doc(db, "users", user.uid), {
-              plan: session.planName,
-            });
-            // Optionally show a success message
-            window.history.replaceState({}, document.title, window.location.pathname);
-          }
-        } catch (error) {
-          console.error("Error verifying payment:", error);
-        }
-      };
-      handlePaymentSuccess();
-    }
+
   }, [user]);
 
   useEffect(() => {
@@ -1360,20 +1255,7 @@ export default function Dashboard() {
               className="bg-transparent border-none outline-none text-xs w-full"
             />
           </div>
-          <button 
-            onClick={async () => {
-              const priceId = import.meta.env.VITE_STRIPE_PRICE_ID_QUEEN_PLAN;
-              if (!priceId) {
-                alert("Stripe Price ID is not configured.");
-                return;
-              }
-              const url = await createCheckoutSession(priceId, user.uid, "Queen Plan");
-              window.location.href = url;
-            }}
-            className="bg-[#ffb300] text-black px-6 py-2 rounded-xl text-xs font-bold hover:bg-[#ffb300]/80 transition-colors"
-          >
-            UPGRADE_PLAN
-          </button>
+
 
           <div className="flex items-center gap-6">
             <div className="relative">
@@ -1398,11 +1280,7 @@ export default function Dashboard() {
                 <p className="text-xs font-black tracking-tight">{user?.displayName || "Hive_Member"}</p>
                 <div className="flex items-center justify-end gap-2">
                   <p className="text-[10px] text-white/40 font-mono uppercase">Edmonton_North</p>
-                  {userData?.plan && (
-                    <span className="text-[8px] font-bold bg-[#ffb300]/20 text-[#ffb300] px-1.5 py-0.5 rounded-full uppercase tracking-tighter">
-                      {userData.plan}
-                    </span>
-                  )}
+
                 </div>
               </button>
               <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-[#ffb300] to-[#ff8c00] p-[1px]">
@@ -1435,6 +1313,11 @@ export default function Dashboard() {
                 setSelectedUserProfile={setSelectedUserProfile}
                 setActiveTab={setActiveTab}
                 setSelectedConversation={setSelectedConversation}
+              />
+            ) : activeTab === "studio" ? (
+              <StudioTab 
+                user={user}
+                userData={userData}
               />
             ) : (
               <div className="space-y-12">
@@ -1473,9 +1356,6 @@ export default function Dashboard() {
               </div>
 
               <div className="space-y-6">
-                {userData?.plan === "Queen Plan" && (
-                  <QueenAIHub activities={activities} user={user} />
-                )}
                 <HiveAssistant />
               </div>
             </section>
@@ -1584,51 +1464,7 @@ export default function Dashboard() {
                     </button>
                   </div>
                   <Hexagon className="absolute -right-8 -bottom-8 text-black/10 w-48 h-48 rotate-12 group-hover:rotate-45 transition-transform duration-1000" />
-                </div>
 
-                <div className="bg-[#111] border border-white/5 rounded-3xl p-6">
-                  <h3 className="text-sm font-black tracking-widest uppercase mb-6 flex items-center gap-2">
-                    <Shield size={16} className="text-[#ffb300]" />
-                    Plan_Privileges
-                  </h3>
-                  <div className="space-y-6">
-                    <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
-                      <div className="flex justify-between items-center mb-2">
-                        <span className="text-[10px] font-mono text-white/40 uppercase tracking-widest">Current_Tier</span>
-                        <span className="text-xs font-black text-[#ffb300] uppercase italic">{userData?.plan || "Drone Plan"}</span>
-                      </div>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-white/60">Neural Nodes</span>
-                          <span className="text-[10px] font-mono">{userData?.limits?.nodes === 9999 ? "∞" : userData?.limits?.nodes || 1}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-[10px] text-white/60">Daily Requests</span>
-                          <span className="text-[10px] font-mono">{userData?.limits?.requests === 9999 ? "∞" : userData?.limits?.requests || 12}</span>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <p className="text-[10px] font-mono text-white/20 uppercase tracking-widest">Active_Features</p>
-                      <div className="flex flex-wrap gap-2">
-                        {(userData?.features || ["Basic AI avatars", "1 personal avatar", "Standard AI assistant"]).map((feature: string, i: number) => (
-                          <span key={i} className="text-[9px] font-bold bg-white/5 text-white/60 px-2 py-1 rounded-lg border border-white/5">
-                            {feature}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    {userData?.plan !== "Queen Plan" && (
-                      <button 
-                        onClick={() => navigate("/#pricing")}
-                        className="w-full py-3 bg-white/5 hover:bg-[#ffb300]/10 border border-white/10 hover:border-[#ffb300]/30 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all text-white/60 hover:text-[#ffb300]"
-                      >
-                        Upgrade_Neural_Link
-                      </button>
-                    )}
-                  </div>
                 </div>
 
                 <div className="bg-[#111] border border-white/5 rounded-3xl p-6">

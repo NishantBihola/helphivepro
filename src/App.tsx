@@ -14,9 +14,8 @@ import ProtocolPage from "./pages/ProtocolPage";
 import StudioPage from "./pages/StudioPage";
 import ContactPage from "./pages/ContactPage";
 import Dashboard from "./pages/Dashboard";
-import CheckoutPage from "./pages/CheckoutPage";
 import { AuthModal } from "./components/Modals";
-import { useAuth, updatePlan } from "./firebase";
+import { useAuth } from "./firebase";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -757,257 +756,50 @@ function KineticPulseSection({ onJoinMission }: { onJoinMission: () => void }) {
   );
 }
 
-function PricingSection({ onAuthRequired }: { onAuthRequired: () => void }) {
-  const navigate = useNavigate();
-  const { user } = useAuth();
-  const [hoveredPlan, setHoveredPlan] = useState<number | null>(null);
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
 
-  const plans = [
-    {
-      name: "Drone Plan",
-      description: "Beginners who want to explore HelpHive without any commitment.",
-      price: "0",
-      image: "https://picsum.photos/seed/drone/400/200?blur=10",
-      gradient: "from-blue-500/20 to-purple-500/20",
-      limits: [
-        "1 neighborhood node",
-        "12 help requests per year"
-      ],
-      features: [
-        "Basic AI avatars",
-        "1 personal avatar",
-        "Standard AI assistant",
-        "Sharing and commenting",
-        "Community access"
-      ]
-    },
-    {
-      name: "Worker Plan",
-      description: "Active contributors or small teams that need more flexibility.",
-      price: "20",
-      image: "https://picsum.photos/seed/worker/400/200?blur=10",
-      gradient: "from-purple-500/20 to-pink-500/20",
-      popular: true,
-      limits: [
-        "5 neighborhood nodes",
-        "120 help requests per year"
-      ],
-      features: [
-        "Selected industry avatars",
-        "5 personal avatars",
-        "Premium voices",
-        "Custom fonts",
-        "Branded share page",
-        "HelpHive API"
-      ]
-    },
-    {
-      name: "Queen Plan",
-      description: "Power users, organizations, and large communities scaling impact.",
-      price: "50",
-      image: "https://picsum.photos/seed/queen/400/200?blur=10",
-      gradient: "from-green-500/20 to-blue-500/20",
-      limits: [
-        "Unlimited neighborhood nodes",
-        "Unlimited help requests"
-      ],
-      features: [
-        "All industry avatars",
-        "Unlimited personal avatars",
-        "Branded AI avatars",
-        "Voice cloning",
-        "Shared workspace",
-        "SAML/SSO"
-      ]
-    }
-  ];
 
-  const handleUpgrade = async (planName: string, price: string) => {
-    if (!user) {
-      onAuthRequired();
-      return;
-    }
-
-    if (price === "0") {
-      try {
-        await updatePlan(user.uid, planName);
-        navigate("/dashboard");
-      } catch (error) {
-        console.error("Error setting drone plan:", error);
-        navigate("/dashboard");
-      }
-      return;
-    }
-    navigate(`/checkout?plan=${encodeURIComponent(planName)}`);
-  };
-
-  const analyzeUsage = async () => {
-    setIsAnalyzing(true);
-    try {
-      const { GoogleGenAI } = await import("@google/genai");
-      const genAI = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-      const response = await genAI.models.generateContent({
-        model: "gemini-3-flash-preview",
-        contents: "Analyze a hypothetical user's usage on HelpHive. They are currently on the Drone Plan ($0). They have 1 node and 10 help requests. Suggest if they should upgrade to the Worker Plan ($20) or Queen Plan ($50) based on community growth potential. Keep it brief and professional.",
-      });
-      setAiAnalysis(response.text);
-    } catch (error) {
-      console.error("AI Analysis failed:", error);
-      setAiAnalysis("Our neural link is currently busy. Based on typical patterns, the Worker Plan is your best next step.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
+function ProductionGradeSection() {
   return (
-    <section id="price" className="py-32 bg-[#050505] relative overflow-hidden">
-      <div className="container mx-auto px-6 md:px-16 lg:px-24 relative z-10">
-        <div className="text-center mb-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="inline-flex items-center gap-3 mb-6"
-          >
-            <div className="w-8 h-[1px] bg-[#ffb300]" />
-            <span className="text-[#ffb300] font-mono text-[10px] uppercase tracking-[0.6em] font-bold">Neural Economics</span>
-            <div className="w-8 h-[1px] bg-[#ffb300]" />
-          </motion.div>
-          <motion.h2
-            initial={{ opacity: 0, y: 30 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-5xl md:text-6xl lg:text-7xl font-bold tracking-tighter mb-6 font-display"
-          >
-            Scale Your <span className="text-[#ffb300]">Impact.</span>
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-white/40 max-w-2xl mx-auto text-lg"
-          >
-            Choose the neural tier that fits your community's growth. 
-            From solo drones to global queen nodes.
-          </motion.p>
-        </div>
-
-        <div className="grid md:grid-cols-3 gap-8">
-          {plans.map((plan, i) => (
-            <motion.div
-              key={i}
-              initial={{ opacity: 0, y: 40 }}
-              whileInView={{ opacity: 1, y: 0 }}
-              viewport={{ once: true }}
-              transition={{ delay: i * 0.1 }}
-              onMouseEnter={() => setHoveredPlan(i)}
-              onMouseLeave={() => setHoveredPlan(null)}
-              className={`relative group rounded-[32px] border border-white/5 bg-white/[0.02] backdrop-blur-3xl overflow-hidden transition-all duration-500 ${hoveredPlan === i ? 'border-[#ffb300]/30 -translate-y-2' : ''}`}
-            >
-              {/* Top Image/Gradient Area */}
-              <div className="relative h-48 overflow-hidden">
-                <img 
-                  src={plan.image} 
-                  alt={plan.name} 
-                  className="w-full h-full object-cover opacity-60 group-hover:scale-110 transition-transform duration-700"
-                  referrerPolicy="no-referrer"
-                />
-                <div className={`absolute inset-0 bg-gradient-to-b ${plan.gradient} to-[#050505]`} />
-                {plan.popular && (
-                  <div className="absolute top-6 right-6 bg-[#ffb300] text-black text-[10px] font-bold px-3 py-1 rounded-full uppercase tracking-wider">
-                    Most Popular
-                  </div>
-                )}
-              </div>
-
-              <div className="p-8">
-                <h3 className="text-2xl font-bold mb-2 font-display">{plan.name}</h3>
-                <p className="text-white/40 text-sm mb-8 leading-relaxed">
-                  {plan.description}
-                </p>
-
-                <div className="flex items-baseline gap-2 mb-8">
-                  <span className="text-4xl font-bold">${plan.price}</span>
-                  <span className="text-white/40 text-sm">/ monthly</span>
-                </div>
-
-                <button 
-                  onClick={(e) => {
-                    e.preventDefault();
-                    handleUpgrade(plan.name, plan.price);
-                  }}
-                  className={`w-full py-4 rounded-2xl font-bold text-sm transition-all duration-300 flex items-center justify-center gap-2 group/btn ${
-                    plan.popular 
-                    ? 'bg-[#ffb300] text-black hover:shadow-[0_0_30px_rgba(255,179,0,0.4)]' 
-                    : 'bg-white/5 text-white hover:bg-white/10 border border-white/10'
-                  }`}
-                >
-                  {plan.price === "0" ? (user ? "Go to Dashboard" : "Get Started") : "Upgrade"}
-                  <ArrowUpRight size={16} className="group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-                </button>
-
-                <div className="mt-10 space-y-8">
-                  <div>
-                    <h4 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/40 mb-4">Plan Limits</h4>
-                    <ul className="space-y-3">
-                      {plan.limits.map((limit, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-sm text-white/80">
-                          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
-                            <Check size={10} className="text-[#ffb300]" />
-                          </div>
-                          {limit}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  <div>
-                    <h4 className="text-[10px] font-mono uppercase tracking-[0.3em] text-white/40 mb-4">
-                      {i === 0 ? "Features" : i === 1 ? "Everything In Drone Plus..." : "Everything In Worker Plus..."}
-                    </h4>
-                    <ul className="space-y-3">
-                      {plan.features.map((feature, idx) => (
-                        <li key={idx} className="flex items-center gap-3 text-sm text-white/80">
-                          <div className="w-5 h-5 rounded-full border border-white/20 flex items-center justify-center">
-                            <Check size={10} className="text-[#ffb300]" />
-                          </div>
-                          {feature}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
-            </motion.div>
-          ))}
-        </div>
-
-        {/* AI Recommendation Logic */}
-        <motion.div
-          initial={{ opacity: 0, y: 40 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          className="mt-20 p-8 rounded-[32px] border border-[#ffb300]/20 bg-[#ffb300]/5 backdrop-blur-3xl flex flex-col md:flex-row items-center gap-8"
-        >
-          <div className="w-16 h-16 rounded-2xl bg-[#ffb300] flex items-center justify-center text-black shrink-0">
-            <Zap size={32} />
-          </div>
-          <div className="flex-1 text-center md:text-left">
-            <h4 className="text-xl font-bold mb-2">Hive Intelligence Recommendation</h4>
-            <p className="text-white/60 text-sm leading-relaxed">
-              {aiAnalysis || "Based on your current network activity and community size, our AI suggests the Worker Plan. It offers the best balance of reputation growth and neural bandwidth for growing neighborhoods."}
+    <section className="py-32 bg-[#050505] text-white">
+      <div className="container mx-auto px-6 md:px-16 lg:px-24">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-16 items-center">
+          <div>
+            <h2 className="text-5xl font-black tracking-tighter mb-6 italic">
+              Production-Grade <br />
+              <span className="text-[#ffb300]">Resilience.</span>
+            </h2>
+            <p className="text-white/60 text-lg leading-relaxed mb-8">
+              HelpHive is built for scale, security, and real-time coordination. Our architecture ensures your community stays connected, even under load, with enterprise-grade infrastructure.
             </p>
+            <div className="flex gap-4">
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                <Shield size={24} className="text-[#ffb300] mb-2" />
+                <h4 className="font-bold">Secure</h4>
+              </div>
+              <div className="p-4 rounded-2xl bg-white/5 border border-white/10">
+                <Zap size={24} className="text-[#ffb300] mb-2" />
+                <h4 className="font-bold">Fast</h4>
+              </div>
+            </div>
           </div>
-          <button 
-            onClick={analyzeUsage}
-            disabled={isAnalyzing}
-            className="px-8 py-4 rounded-2xl bg-white text-black font-bold text-sm hover:bg-[#ffb300] transition-colors whitespace-nowrap disabled:opacity-50"
-          >
-            {isAnalyzing ? "Analyzing..." : "Analyze My Usage"}
-          </button>
-        </motion.div>
+          <div className="bg-[#111] p-8 rounded-[32px] border border-white/10">
+            <h3 className="text-2xl font-bold mb-6">Infrastructure Overview</h3>
+            <div className="space-y-4">
+              <div className="flex justify-between border-b border-white/10 pb-4">
+                <span className="text-white/40">Uptime</span>
+                <span className="font-bold text-[#ffb300]">99.99%</span>
+              </div>
+              <div className="flex justify-between border-b border-white/10 pb-4">
+                <span className="text-white/40">Latency</span>
+                <span className="font-bold text-[#ffb300]">&lt; 50ms</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-white/40">Security</span>
+                <span className="font-bold text-[#ffb300]">ZK-Proof</span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -1156,7 +948,6 @@ export default function App() {
       <Route path="/studio" element={<StudioPage />} />
       <Route path="/contact" element={<ContactPage />} />
       <Route path="/dashboard" element={<Dashboard />} />
-      <Route path="/checkout" element={<CheckoutPage />} />
     </Routes>
   );
 }
@@ -1399,7 +1190,7 @@ function HomePage() {
       </section>
 
       <KineticPulseSection onJoinMission={handleEnterHive} />
-      <PricingSection onAuthRequired={() => setIsAuthModalOpen(true)} />
+      <ProductionGradeSection />
       <Footer />
       <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} />
     </div>
